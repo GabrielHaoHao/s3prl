@@ -29,7 +29,8 @@ class DownstreamExpert(nn.Module):
         self.datarc = downstream_expert["datarc"]
         self.modelrc = downstream_expert["modelrc"]
 
-        train_list, valid_list = split_dataset(self.datarc["speech_commands_root"])
+        # train_list, valid_list = split_dataset(self.datarc["speech_commands_root"])
+        train_list, valid_list = divid_dataset(self.datarc["speech_commands_root"])
 
         self.train_dataset = SpeechCommandsDataset(train_list, **self.datarc)
         self.dev_dataset = SpeechCommandsDataset(valid_list, **self.datarc)
@@ -179,4 +180,23 @@ def split_dataset(
             else:
                 train_list.append((entry.name, audio_path))
 
+    return train_list, valid_list
+
+
+def divid_dataset(root_dir):
+    train_list, valid_list = [], []
+    train_list_path = root_dir + 'train.txt'
+    valid_list_path = root_dir + 'val.txt'
+    with open(train_list_path, 'r') as ft:
+        content = ft.readlines()
+        for line in content:
+            wav_path = line[:-1]
+            label = line.split('/')[-2]
+            train_list.append((label, wav_path))
+    with open(valid_list_path, 'r') as fv:
+        content = fv.readlines()
+        for line in content:
+            wav_path = line[:-1]
+            label = line.split('/')[-2]
+            valid_list.append((label, wav_path))
     return train_list, valid_list

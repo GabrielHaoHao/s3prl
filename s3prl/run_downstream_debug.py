@@ -138,7 +138,7 @@ def get_downstream_args():
         os.makedirs(args.expdir, exist_ok=True)
 
         if args.config is None:
-            args.config = f'./downstream/{args.downstream}/config.yaml'
+            args.config = f'/root/s3prl/s3prl/downstream/{args.downstream}/config.yaml'
         with open(args.config, 'r') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
 
@@ -184,11 +184,11 @@ def main():
     if args.hub == "huggingface":
         args.from_hf_hub = True
         # Setup auth
-        hf_user = os.environ.get("HF_USERNAME")
-        hf_password = os.environ.get("HF_PASSWORD")
-        huggingface_token = HfApi().login(username=hf_user, password=hf_password)
-        HfFolder.save_token(huggingface_token)
-        print(f"Logged into Hugging Face Hub with user: {hf_user}")
+        # hf_user = os.environ.get("HF_USERNAME")
+        # hf_password = os.environ.get("HF_PASSWORD")
+        # huggingface_token = HfApi().login(username=hf_user, password=hf_password)
+        # HfFolder.save_token(huggingface_token)
+        # print(f"Logged into Hugging Face Hub with user: {hf_user}")
     
     # Save command
     if is_leader_process():

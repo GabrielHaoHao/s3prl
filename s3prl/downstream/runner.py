@@ -17,7 +17,8 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import is_initialized, get_rank, get_world_size
-
+import sys
+sys.path.append('/s3prl')
 from s3prl import hub
 from s3prl.optimizers import get_optimizer
 from s3prl.schedulers import get_scheduler
@@ -118,28 +119,29 @@ class Runner():
 
 
     def _get_upstream(self):
-        if "from_hf_hub" in self.args and self.args.from_hf_hub == True:
-            from huggingface_hub import snapshot_download
+        # if "from_hf_hub" in self.args and self.args.from_hf_hub == True:
+        #     from huggingface_hub import snapshot_download
 
-            print(f'[Runner] - Downloading upstream model {self.args.upstream} from the Hugging Face Hub')
-            filepath = snapshot_download(self.args.upstream, self.args.upstream_revision, use_auth_token=True)
-            sys.path.append(filepath)
+        #     print(f'[Runner] - Downloading upstream model {self.args.upstream} from the Hugging Face Hub')
+        #     # filepath = snapshot_download(self.args.upstream, self.args.upstream_revision, use_auth_token=True)
+        #     filepath = snapshot_download(self.args.upstream)
+        #     sys.path.append(filepath)
 
-            dependencies = (Path(filepath) / 'requirements.txt').resolve()
-            print("[Dependency] - The downloaded upstream model requires the following dependencies. Please make sure they are installed:")
-            for idx, line in enumerate((Path(filepath) / "requirements.txt").open().readlines()):
-                print(f"{idx}. {line.strip()}")
-            print(f"You can install them by:")
-            print()
-            print(f"pip install -r {dependencies}")
-            print()
+        #     dependencies = (Path(filepath) / 'requirements.txt').resolve()
+        #     print("[Dependency] - The downloaded upstream model requires the following dependencies. Please make sure they are installed:")
+        #     for idx, line in enumerate((Path(filepath) / "requirements.txt").open().readlines()):
+        #         print(f"{idx}. {line.strip()}")
+        #     print(f"You can install them by:")
+        #     print()
+        #     print(f"pip install -r {dependencies}")
+        #     print()
 
-            from expert import UpstreamExpert
-            Upstream = UpstreamExpert
-            ckpt_path = os.path.join(filepath, self.args.upstream_model_name)
-        else:
-            Upstream = getattr(hub, self.args.upstream)
-            ckpt_path = self.args.upstream_ckpt
+        #     from expert import UpstreamExpert
+        #     Upstream = UpstreamExpert
+        #     ckpt_path = os.path.join(filepath, self.args.upstream_model_name)
+        # else:
+        Upstream = getattr(hub, self.args.upstream)
+        ckpt_path = self.args.upstream_ckpt
         upstream_refresh = self.args.upstream_refresh
 
         if is_initialized() and get_rank() > 0:

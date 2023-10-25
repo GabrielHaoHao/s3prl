@@ -24,8 +24,8 @@ optimizer:
 
 downstream_expert:
   datarc:
-    speech_commands_root: /groups/public/benchmark/speech_commands/train
-    speech_commands_test_root: /groups/public/benchmark/speech_commands/test
+    speech_commands_root: /root/data1/data/Speech_Group/Dataset/KWS/origin_sp1/
+    speech_commands_test_root: /root/data1/data/Speech_Group/Dataset/KWS/speech_commands_v1/test
     num_workers: 8
     batch_size: 32
 
