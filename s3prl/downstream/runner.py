@@ -304,6 +304,7 @@ class Runner():
                         break
                     global_step = pbar.n + 1
 
+                    # deal with data (audio, text)
                     wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
                     text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
 
@@ -485,6 +486,7 @@ class Runner():
                 break
 
             wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+            text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
             with torch.no_grad():
                 features = self.upstream.model(wavs)
                 features = self.featurizer.model(wavs, features)
