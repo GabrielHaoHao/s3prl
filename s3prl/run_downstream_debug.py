@@ -90,7 +90,7 @@ def get_downstream_args():
     backup_files = []
 
     if args.expdir is None:
-        args.expdir = f'/s3prl/result/downstream/{args.expname}'
+        args.expdir = f'result/downstream/{args.expname}'
 
     if args.auto_resume:
         if os.path.isdir(args.expdir):
@@ -184,11 +184,11 @@ def main():
     if args.hub == "huggingface":
         args.from_hf_hub = True
         # Setup auth
-        hf_user = os.environ.get("HF_USERNAME")
-        hf_password = os.environ.get("HF_PASSWORD")
-        huggingface_token = HfApi().login(username=hf_user, password=hf_password)
-        HfFolder.save_token(huggingface_token)
-        print(f"Logged into Hugging Face Hub with user: {hf_user}")
+        # hf_user = os.environ.get("HF_USERNAME")
+        # hf_password = os.environ.get("HF_PASSWORD")
+        # huggingface_token = HfApi().login(username=hf_user, password=hf_password)
+        # HfFolder.save_token(huggingface_token)
+        # print(f"Logged into Hugging Face Hub with user: {hf_user}")
     
     # Save command
     if is_leader_process():
@@ -215,6 +215,7 @@ def main():
 
     runner = Runner(args, config)
     eval(f'runner.{args.mode}')()
+
 
 
 if __name__ == '__main__':

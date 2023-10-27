@@ -64,6 +64,15 @@ def wav2vec2_custom(
     else:
         return _UpstreamExpert(ckpt, **kwargs)
 
+def wav2vec2_custom_kws(
+    ckpt: str,
+    legacy: bool = False,
+    fairseq: bool = False,
+    refresh: bool = False,
+    **kwargs,
+):
+    return _UpstreamExpert(ckpt, **kwargs)
+
 
 def wav2vec2_local(*args, **kwargs):
     return wav2vec2_custom(*args, **kwargs)
@@ -78,7 +87,8 @@ def wav2vec2(refresh=False, *args, **kwargs):
     The default model - Base
         refresh (bool): whether to download ckpt/config again if existed
     """
-    return wav2vec2_base_960(refresh=refresh, *args, **kwargs)
+    return wav2vec2_custom_kws(refresh=refresh, *args, **kwargs)
+    # return wav2vec2_base_960(refresh=refresh, *args, **kwargs)
 
 
 def wav2vec2_base_960(refresh=False, legacy=False, **kwargs):

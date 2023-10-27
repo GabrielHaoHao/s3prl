@@ -5,16 +5,17 @@ import os
 import hashlib
 from pathlib import Path
 from typing import List, Tuple, Union
+import pandas as pd
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader, DistributedSampler
 from catalyst.data.sampler import DistributedSamplerWrapper
 from torch.distributed import is_initialized
 from torch.nn.utils.rnn import pad_sequence
 
-from ..model import *
-from .dataset import SpeechCommandsDataset, SpeechCommandsTestingDataset, CLASSES
+from .model import Model
+from .dataset import SpeechCommandsDataset
 
 
 class DownstreamExpert(nn.Module):
@@ -29,19 +30,25 @@ class DownstreamExpert(nn.Module):
         self.datarc = downstream_expert["datarc"]
         self.modelrc = downstream_expert["modelrc"]
 
-        train_list, valid_list = split_dataset(self.datarc["speech_commands_root"])
+        # train_list, valid_list = split_dataset(self.datarc["speech_commands_root"])
+        # train_list, valid_list = divid_dataset(self.datarc["speech_commands_root"])
+        train_list, valid_list, test_list = split_kws_dataset(self.datarc["speech_commands_root"])
 
         self.train_dataset = SpeechCommandsDataset(train_list, **self.datarc)
         self.dev_dataset = SpeechCommandsDataset(valid_list, **self.datarc)
-        self.test_dataset = SpeechCommandsTestingDataset(**self.datarc)
+        self.test_dataset = SpeechCommandsDataset(test_list, **self.datarc)
 
-        model_cls = eval(self.modelrc['select'])
-        model_conf = self.modelrc.get(self.modelrc['select'], {})
         self.projector = nn.Linear(upstream_dim, self.modelrc['projector_dim'])
-        self.model = model_cls(
+        self.projector_text = nn.Linear(upstream_dim, self.modelrc['projector_dim'])
+        # self.model = model_cls(
+        #     input_dim = self.modelrc['projector_dim'],
+        #     output_dim = self.train_dataset.class_num,
+        #     **model_conf,
+        # )
+        self.model = Model(
             input_dim = self.modelrc['projector_dim'],
-            output_dim = self.train_dataset.class_num,
-            **model_conf,
+            output_class_num = self.train_dataset.class_num,
+            hidden_dim = self.modelrc['projector_dim'],
         )
 
         self.objective = nn.CrossEntropyLoss()
@@ -49,9 +56,9 @@ class DownstreamExpert(nn.Module):
         self.register_buffer('best_score', torch.zeros(1))
 
     def _get_balanced_train_dataloader(self, dataset, drop_last=False):
-        sampler = WeightedRandomSampler(dataset.sample_weights, len(dataset.sample_weights))
-        if is_initialized():
-            sampler = DistributedSamplerWrapper(sampler)
+        sampler = DistributedSampler(dataset) if is_initialized() else None
+        # if is_initialized():
+        #     sampler = DistributedSamplerWrapper(sampler)
         return DataLoader(
             dataset,
             sampler=sampler,
@@ -64,9 +71,6 @@ class DownstreamExpert(nn.Module):
     def _get_balanced_dev_dataloader(self, dataset, drop_last=False):
         return DataLoader(
             dataset,
-            sampler=WeightedRandomSampler(
-                dataset.sample_weights, len(dataset.sample_weights)
-            ),
             batch_size=self.datarc["batch_size"],
             drop_last=drop_last,
             num_workers=self.datarc["num_workers"],
@@ -95,12 +99,14 @@ class DownstreamExpert(nn.Module):
             raise NotImplementedError
 
     # Interface
-    def forward(self, mode, features, labels, filenames, records, **kwargs):
+    def forward(self, mode, features, feat_text, labels, records, **kwargs):
         device = features[0].device
-        features_len = torch.IntTensor([len(feat) for feat in features]).to(device=device)
+        len_audio = torch.IntTensor([len(feat) for feat in features]).to(device=device)
+        len_text = torch.IntTensor([len(feat) for feat in feat_text]).to(device=device)
         features = pad_sequence(features, batch_first=True)
         features = self.projector(features)
-        predicted, _ = self.model(features, features_len)
+        text_features = self.projector_text(feat_text)
+        predicted = self.model(features, text_features, len_audio, len_text)
 
         labels = torch.LongTensor(labels).to(features.device)
         loss = self.objective(predicted, labels)
@@ -109,9 +115,6 @@ class DownstreamExpert(nn.Module):
         records["loss"].append(loss.item())
         records["acc"] += (predicted_classid == labels).view(-1).cpu().float().tolist()
 
-        records["filename"] += filenames
-        records["predict"] += [CLASSES[idx] for idx in predicted_classid.cpu().tolist()]
-        records["truth"] += [CLASSES[idx] for idx in labels.cpu().tolist()]
 
         return loss
 
@@ -180,3 +183,66 @@ def split_dataset(
                 train_list.append((entry.name, audio_path))
 
     return train_list, valid_list
+
+
+def divid_dataset(root_dir):
+    train_list, valid_list= [], []
+    train_list_path = root_dir + 'train.txt'
+    valid_list_path = root_dir + 'val.txt'
+    with open(train_list_path, 'r') as ft:
+        content = ft.readlines()
+        for line in content:
+            wav_path = line[:-1]
+            label = line.split('/')[-2]
+            train_list.append((label, wav_path))
+    with open(valid_list_path, 'r') as fv:
+        content = fv.readlines()
+        for line in content:
+            wav_path = line[:-1]
+            label = line.split('/')[-2]
+            valid_list.append((label, wav_path))
+    return train_list, valid_list
+
+def split_kws_dataset(root_dir):
+    # train_set
+    train_list = []
+    train_path = root_dir + 'train/'
+    for i in range(1, 5):
+        cur_path = train_path + 'libriphrase_diffspk_train_' + str(i) + 'word.csv'
+        cur_list = pd.read_csv(cur_path).values.tolist()
+        train_cur_list = []
+        for line in cur_list:
+            wav_path = root_dir + line[1]
+            text = line[7]
+            label = line[-2]
+            train_cur_list.append((wav_path, text, label))
+        train_list += train_cur_list
+
+    # dev_set
+    val_list = []
+    val_path = root_dir + 'val/'
+    for i in range(1, 5):
+        cur_path = val_path + 'libriphrase_diffspk_val_' + str(i) + 'word.csv'
+        cur_list = pd.read_csv(cur_path).values.tolist()
+        val_cur_list = []
+        for line in cur_list:
+            wav_path = root_dir + line[0]
+            text = line[6]
+            label = line[-2]
+            val_cur_list.append((wav_path, text, label))
+        val_list += val_cur_list
+
+    # test_set
+    test_list = []
+    test_path = root_dir + 'test/'
+    for i in range(1, 5):
+        cur_path = test_path + 'libriphrase_diffspk_test_' + str(i) + 'word.csv'
+        cur_list = pd.read_csv(cur_path).values.tolist()
+        test_cur_list = []
+        for line in cur_list:
+            wav_path = root_dir + line[0]
+            text = line[6]
+            label = line[-2]
+            test_cur_list.append((wav_path, text, label))
+        test_list += test_cur_list
+    return train_list, val_list, test_list

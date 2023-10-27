@@ -91,6 +91,8 @@ class Runner():
         self.init_ckpt = torch.load(self.args.init_ckpt, map_location='cpu') if self.args.init_ckpt else {}
 
         self.upstream = self._get_upstream()
+        self.upstream_huggingface = self._get_upstream_huggingface()
+        self.tokenizer = self._get_tokenizer()
         self.featurizer = self._get_featurizer()
         self.downstream = self._get_downstream()
         self.all_entries = [self.upstream, self.featurizer, self.downstream]
@@ -162,6 +164,15 @@ class Runner():
             interfaces = ["get_downsample_rates"]
         )
 
+    def _get_upstream_huggingface(self):
+        from transformers import DistilBertModel
+        model = DistilBertModel.from_pretrained('/root/data2/data/dataset/huggingface_model/DistillBert').to(self.args.device)
+        return model
+
+    def _get_tokenizer(self):
+        from transformers import DistilBertTokenizer
+        tokenizer = DistilBertTokenizer.from_pretrained('/root/data2/data/dataset/huggingface_model/DistillBert')
+        return tokenizer
 
     def _get_featurizer(self):
         model = Featurizer(
@@ -236,6 +247,9 @@ class Runner():
             else:
                 entry.model.eval()
 
+        # huggingface model        
+        self.upstream_huggingface.eval()
+
         # set amp
         amp = self.config['runner'].get('fp16', False)
         if amp:
@@ -283,7 +297,7 @@ class Runner():
                 else:
                     raise
 
-            for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc='train', file=tqdm_file)):
+            for batch_id, (wavs, text, label) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc='train', file=tqdm_file)):
                 # try/except block for forward/backward
                 try:
                     if pbar.n >= pbar.total:
@@ -291,6 +305,7 @@ class Runner():
                     global_step = pbar.n + 1
 
                     wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+                    text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
 
                     with torch.cuda.amp.autocast(enabled=amp):
                         if self.upstream.trainable:
@@ -298,6 +313,7 @@ class Runner():
                         else:
                             with torch.no_grad():
                                 features = self.upstream.model(wavs)
+                                feat_text = self.upstream_huggingface(**text)[0]
                         features = self.featurizer.model(wavs, features)
 
                         if specaug:
@@ -305,7 +321,7 @@ class Runner():
 
                         loss = self.downstream.model(
                             train_split,
-                            features, *others,
+                            features, feat_text, label,
                             records = records,
                         )
                     batch_ids.append(batch_id)
@@ -454,6 +470,9 @@ class Runner():
             trainings.append(entry.model.training)
             entry.model.eval()
 
+        # huggingface model        
+        self.upstream_huggingface.eval()
+
         # prepare data
         dataloader = self.downstream.model.get_dataloader(split)
         evaluate_ratio = float(self.config["runner"].get("evaluate_ratio", 1))
@@ -461,7 +480,7 @@ class Runner():
 
         batch_ids = []
         records = defaultdict(list)
-        for batch_id, (wavs, *others) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
+        for batch_id, (wavs, text, label) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
             if batch_id > evaluate_steps:
                 break
 
@@ -469,9 +488,10 @@ class Runner():
             with torch.no_grad():
                 features = self.upstream.model(wavs)
                 features = self.featurizer.model(wavs, features)
+                feat_text = self.upstream_huggingface(**text)[0]
                 self.downstream.model(
                     split,
-                    features, *others,
+                    features, feat_text, label,
                     records = records,
                     batch_id = batch_id,
                 )
