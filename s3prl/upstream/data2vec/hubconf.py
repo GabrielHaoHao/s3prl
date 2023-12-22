@@ -21,13 +21,28 @@ def data2vec_local(*args, **kwargs):
 def data2vec_url(*args, **kwargs):
     return data2vec_custom(*args, **kwargs)
 
+def data2vec_custom_kws(
+    ckpt: str,
+    legacy: bool = False,
+    fairseq: bool = False,
+    refresh: bool = False,
+    **kwargs,
+):
+    return _UpstreamExpert(ckpt, **kwargs)
+
+# def data2vec(refresh=False, *args, **kwargs):
+#     """
+#     The default model - Base
+#         refresh (bool): whether to download ckpt/config again if existed
+#     """
+#     return data2vec_base_960(refresh=refresh, *args, **kwargs)
 
 def data2vec(refresh=False, *args, **kwargs):
     """
     The default model - Base
         refresh (bool): whether to download ckpt/config again if existed
     """
-    return data2vec_base_960(refresh=refresh, *args, **kwargs)
+    return data2vec_custom_kws(refresh=refresh, *args, **kwargs)
 
 
 def data2vec_base_960(refresh=False, *args, **kwargs):

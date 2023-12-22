@@ -21,10 +21,10 @@ from typing import Tuple
 
 import torch
 from torch import nn
-from .net_utils import make_pad_mask
+from .mask import make_pad_mask
 
 
-class Pattern_extrator(nn.Module):
+class composition_text_multihead_attention(nn.Module):
     """Multi-Head Attention layer.
 
     Args:
@@ -43,39 +43,7 @@ class Pattern_extrator(nn.Module):
         self.linear_q = nn.Linear(n_feat, n_feat)
         self.linear_k = nn.Linear(n_feat, n_feat)
         self.linear_v = nn.Linear(n_feat, n_feat)
-        self.linear_out = nn.Linear(n_feat, n_feat)
         self.dropout = nn.Dropout(p=dropout_rate)
-
-    def generate_multi_modal_mask_new(self, b, l_v, l_s, ilens, ylens):
-        device = ilens.device
-        mask_s_s = (torch.triu(torch.ones(l_s, l_s)) == 1).transpose(0, 1).to(device)
-        mask_s_s = mask_s_s.float().masked_fill(mask_s_s == 0, float('-inf')).masked_fill(mask_s_s == 1, float(0.0))    #只有下三角的semantic和semantic的mask矩阵,不mask的区域为0，其他区域为负无穷大
-        mask_s_s = mask_s_s.expand(b, l_s, l_s)
-
-        if ylens is not None:
-            tgt_mask = (make_pad_mask(ylens)[:, None, :])
-            tgt_mask = tgt_mask.expand(b,l_s,l_s)
-            mask_s_s = mask_s_s.masked_fill(tgt_mask == 1, float('-inf'))
-
-
-        mask_v_v = torch.zeros(l_v,l_v).to(device)     #visual和visual的mask，全部为0
-        mask_v_v = mask_v_v.expand(b, l_v, l_v)      
-        mask_s_v = torch.zeros(l_s,l_v).to(device)
-        mask_s_v = mask_s_v.expand(b,l_s,l_v)
-        
-        if ilens is not None:
-            src_mask = (make_pad_mask(ilens)[:, None, :])
-            src_mask_v_v = src_mask.expand(b,l_v,l_v)
-            mask_v_v = mask_v_v.float().masked_fill(src_mask_v_v == 1, float('-inf'))
-            src_mask_s_v = src_mask.expand(b,l_s,l_v)
-            mask_s_v = mask_s_v.float().masked_fill(src_mask_s_v == 1, float('-inf'))
-        
-        mask_v_s = torch.zeros(l_v,l_s).fill_(float('-inf')).to(device)     #visual和semantic的mask，全部为0
-        mask_v_s = mask_v_s.expand(b,l_v,l_s)
-        mask_t = torch.cat([mask_v_v,mask_v_s],dim=2)
-        mask_b = torch.cat([mask_s_v,mask_s_s],dim=2)
-        mask = torch.cat([mask_t,mask_b],dim=1)
-        return mask
 
     def forward_qkv(
         self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor
@@ -105,6 +73,7 @@ class Pattern_extrator(nn.Module):
         v = v.transpose(1, 2)  # (batch, head, time2, d_k)
 
         return q, k, v
+
 
     def forward_attention(
         self, value: torch.Tensor, scores: torch.Tensor,
@@ -149,20 +118,14 @@ class Pattern_extrator(nn.Module):
                                                  self.h * self.d_k)
              )  # (batch, time1, d_model)
 
-        return self.linear_out(x)  # (batch, time1, d_model)
+        return x  # (batch, time1, d_model)
 
-    def forward(self, audio_encoder_out: torch.Tensor, text_encoder_out: torch.Tensor, speech_length: torch.Tensor, text_length: torch.Tensor):
-        device = audio_encoder_out.device
-        B, l_a, C = audio_encoder_out.size()
-        B, l_s, C = text_encoder_out.size()
-        atten_mask = self.generate_multi_modal_mask_new(B, l_a, l_s, speech_length, text_length).to(device)
-        # atten_mask = atten_mask.repeat(self.h, 1, 1)
-        multi_modal_input = torch.cat([audio_encoder_out, text_encoder_out], dim=1)
-        query = multi_modal_input
-        key = multi_modal_input
-        value = multi_modal_input
+    def forward(self, text_combined: torch.Tensor, masks: torch.Tensor):
+        query = text_combined
+        key = text_combined
+        value = text_combined
 
         q, k, v = self.forward_qkv(query, key, value)
 
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)
-        return self.forward_attention(v, scores, atten_mask)
+        return self.forward_attention(v, scores, masks)

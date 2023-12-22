@@ -27,12 +27,21 @@ def distiller_url(ckpt, refresh=False, *args, **kwargs):
     """
     return distiller_local(_urls_to_filepaths(ckpt, refresh=refresh), *args, **kwargs)
 
+def distiller_custom_kws(
+    ckpt: str,
+    legacy: bool = False,
+    fairseq: bool = False,
+    refresh: bool = False,
+    **kwargs,
+):
+    return _UpstreamExpert(ckpt, **kwargs)
+
 
 def distilhubert(refresh=False, *args, **kwargs):
     """
     DistilHuBERT
     """
-    return distilhubert_base(refresh=refresh, *args, **kwargs)
+    return distiller_custom_kws(refresh=refresh, *args, **kwargs)
 
 
 def distilhubert_base(refresh=False, *args, **kwargs):

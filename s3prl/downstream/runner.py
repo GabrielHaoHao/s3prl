@@ -121,27 +121,6 @@ class Runner():
 
 
     def _get_upstream(self):
-        # if "from_hf_hub" in self.args and self.args.from_hf_hub == True:
-        #     from huggingface_hub import snapshot_download
-
-        #     print(f'[Runner] - Downloading upstream model {self.args.upstream} from the Hugging Face Hub')
-        #     # filepath = snapshot_download(self.args.upstream, self.args.upstream_revision, use_auth_token=True)
-        #     filepath = snapshot_download(self.args.upstream)
-        #     sys.path.append(filepath)
-
-        #     dependencies = (Path(filepath) / 'requirements.txt').resolve()
-        #     print("[Dependency] - The downloaded upstream model requires the following dependencies. Please make sure they are installed:")
-        #     for idx, line in enumerate((Path(filepath) / "requirements.txt").open().readlines()):
-        #         print(f"{idx}. {line.strip()}")
-        #     print(f"You can install them by:")
-        #     print()
-        #     print(f"pip install -r {dependencies}")
-        #     print()
-
-        #     from expert import UpstreamExpert
-        #     Upstream = UpstreamExpert
-        #     ckpt_path = os.path.join(filepath, self.args.upstream_model_name)
-        # else:
         Upstream = getattr(hub, self.args.upstream)
         ckpt_path = self.args.upstream_ckpt
         upstream_refresh = self.args.upstream_refresh
@@ -167,13 +146,15 @@ class Runner():
         )
 
     def _get_upstream_huggingface(self):
+        # from transformers import BertModel
         from transformers import DistilBertModel
-        model = DistilBertModel.from_pretrained('/root/data2/data/dataset/huggingface_model/DistillBert').to(self.args.device)
+        model = DistilBertModel.from_pretrained(self.args.upstream_text).to(self.args.device)
         return model
 
     def _get_tokenizer(self):
+        # from transformers import BertTokenizer
         from transformers import DistilBertTokenizer
-        tokenizer = DistilBertTokenizer.from_pretrained('/root/data2/data/dataset/huggingface_model/DistillBert')
+        tokenizer = DistilBertTokenizer.from_pretrained(self.args.upstream_text)
         return tokenizer
 
     def _get_featurizer(self):
@@ -196,9 +177,10 @@ class Runner():
     def _get_downstream(self):
         expert = importlib.import_module(f"s3prl.downstream.{self.args.downstream}.expert")
         Downstream = getattr(expert, "DownstreamExpert")
-
+        
         model = Downstream(
             upstream_dim = self.featurizer.model.output_dim,
+            text_upstream_dim = self.upstream_huggingface.config.dim,
             upstream_rate = self.featurizer.model.downsample_rate,
             **self.config,
             **vars(self.args)
@@ -305,11 +287,11 @@ class Runner():
                     if pbar.n >= pbar.total:
                         break
                     global_step = pbar.n + 1
-
+                    records["text"] += list(text)
                     # deal with data (audio, text)
                     wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
                     text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
-
+                    text_mask = text['attention_mask']
                     with torch.cuda.amp.autocast(enabled=amp):
                         if self.upstream.trainable:
                             features = self.upstream.model(wavs)
@@ -324,7 +306,7 @@ class Runner():
 
                         loss = self.downstream.model(
                             train_split,
-                            features, feat_text, label,
+                            features, feat_text, text_mask, label,
                             records = records,
                         )
                     batch_ids.append(batch_id)
@@ -483,22 +465,25 @@ class Runner():
 
         batch_ids = []
         records = defaultdict(list)
-        for batch_id, (wavs, text, label) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
+        for batch_id, (wavs, text, label, filename, typename) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc=split, total=evaluate_steps)):
             if batch_id > evaluate_steps:
                 break
-
+            records["text"] += list(text)
             wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
             text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
+            text_mask = text['attention_mask']
             with torch.no_grad():
                 features = self.upstream.model(wavs)
                 features = self.featurizer.model(wavs, features)
                 feat_text = self.upstream_huggingface(**text)[0]
                 self.downstream.model(
                     split,
-                    features, feat_text, label,
+                    features, feat_text, text_mask, label,
                     records = records,
                     batch_id = batch_id,
                 )
+                records["filename"] += filename
+                records["typename"] += typename
                 batch_ids.append(batch_id)
 
         save_names = self.downstream.model.log_records(

@@ -9,6 +9,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+s3prl/result
 build/
 develop-eggs/
 dist/

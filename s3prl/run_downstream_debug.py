@@ -62,6 +62,7 @@ def get_downstream_args():
         f"Available options in S3PRL: {upstreams}. "
     )
     parser.add_argument('-k', '--upstream_ckpt', metavar='{PATH,URL,GOOGLE_DRIVE_ID}', help='Only set when the specified upstream need it')
+    parser.add_argument('-ut', '--upstream_text', metavar='UPSTREAM_PATH', help='set when the specified upstream need it')
     parser.add_argument('-g', '--upstream_model_config', help='The config file for constructing the pretrained model')
     parser.add_argument('-r', '--upstream_refresh', action='store_true', help='Re-download cached ckpts for on-the-fly upstream variants')
     parser.add_argument('-f', '--upstream_trainable', action='store_true', help='Fine-tune, set upstream.train(). Default is upstream.eval()')
