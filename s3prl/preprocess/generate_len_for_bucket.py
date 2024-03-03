@@ -29,10 +29,10 @@ def get_preprocess_args():
     parser = argparse.ArgumentParser(description='preprocess arguments for any dataset.')
 
     parser.add_argument('-i', '--input_data', default='../LibriSpeech/', type=str, help='Path to your LibriSpeech directory', required=False)
-    parser.add_argument('-o', '--output_path', default='./data/', type=str, help='Path to store output', required=False)
+    parser.add_argument('-o', '--output_path', default='/s3prl/s3prl/data/', type=str, help='Path to store output', required=False)
     parser.add_argument('-a', '--audio_extension', default='.flac', type=str, help='audio file type (.wav / .flac / .mp3 / etc)', required=False)
     parser.add_argument('-n', '--name', default='len_for_bucket', type=str, help='Name of the output directory', required=False)
-    parser.add_argument('--n_jobs', default=-1, type=int, help='Number of jobs used for feature extraction', required=False)
+    parser.add_argument('--n_jobs', default=32, type=int, help='Number of jobs used for feature extraction', required=False)
 
     args = parser.parse_args()
     return args

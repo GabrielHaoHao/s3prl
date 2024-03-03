@@ -87,11 +87,13 @@ def hubert_base(refresh=False, legacy=False, **kwargs):
     The Base model
         refresh (bool): whether to download ckpt/config again if existed
     """
-    kwargs["ckpt"] = "https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt"
+    # kwargs["ckpt"] = "https://dl.fbaipublicfiles.com/hubert/hubert_base_ls960.pt"
+    # kwargs["ckpt"] = "/root/data2/data/pretrain_model/hubert_s3prl/hubert_base_ls960.pt"
     if not legacy:
         kwargs[
             "ckpt"
         ] = "https://huggingface.co/s3prl/converted_ckpts/resolve/main/hubert_base_ls960.pt"
+    kwargs["ckpt"] = "/root/data2/data/pretrain_model/hubert_s3prl/hubert_base_ls960.pt"
     return hubert_custom(refresh=refresh, legacy=legacy, **kwargs)
 
 

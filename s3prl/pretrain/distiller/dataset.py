@@ -55,4 +55,4 @@ class OnlineWaveDataset(WaveDataset):
         for idx in range(x_pad_batch.shape[0]):
             pad_mask[idx, x_lens[idx] :] = 0
 
-        return [x_pad_batch, x_batch, x_lens, pad_mask]
+        return [x_pad_batch, x_pad_batch, x_lens, pad_mask]

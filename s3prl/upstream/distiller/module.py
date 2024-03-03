@@ -9,7 +9,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import sys
+sys.path.append('/s3prl/')
 from s3prl.upstream.wav2vec2.wav2vec2_model import (
     ConvFeatureExtractionModel,
     GradMultiply,

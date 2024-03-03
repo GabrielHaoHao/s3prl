@@ -135,8 +135,8 @@ class DistillerModel(nn.Module):
 
         self.post_extract_proj = (
             nn.Linear(feat_emb_dim, config.encoder_embed_dim)
-            if feat_emb_dim != config.encoder_embed_dim
-            else None
+            # if feat_emb_dim != config.encoder_embed_dim
+            # else None
         )
 
         if config.encoder_layers > 0:

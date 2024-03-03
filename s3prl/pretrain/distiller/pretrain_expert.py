@@ -125,6 +125,7 @@ class UpstreamPretrainExpert(nn.Module):
 
         wave_input, wave_orig, wave_len, pad_mask = data
         wave_input = wave_input.to(self.device)
+        wave_orig = wave_orig.to(self.device)
         wave_len = wave_len.to(self.device)
         pad_mask = pad_mask.type(wave_input.dtype).to(self.device)
 
@@ -261,21 +262,23 @@ class DistillerForPretrain(nn.Module):
         feat, feat_final, pred, pad_mask = self.distiller(wave_input, pad_mask)
 
         with torch.no_grad():
-            wave_orig = [wave.to(wave_input.device) for wave in wave_orig]
+            # wave_orig = [wave.to(wave_input.device) for wave in wave_orig]
             with torch.cuda.amp.autocast(False):
-                teacher_hiddens = self.teacher(wave_orig)
+                # teacher_hiddens = self.teacher(wave_orig)
+                teacher_hiddens = self.teacher(wave_orig, wave_len)
             if self.config.task_emb_type == "none":
                 teacher_hiddens = teacher_hiddens["hidden_states"][self.config.n_tasks]
                 teacher_hiddens = teacher_hiddens.unsqueeze(1)
             else:
                 if self.config.task_emb_type in ["expand-last", "hnet", "self-hidden"]:
-                    teacher_hiddens = [
+                    print(type(teacher_hiddens["hidden_states"]))
+                    teacher_hiddens_output = [
                         teacher_hiddens["hidden_states"][i]
                         for i in self.distiller.pred_layer_id
                     ]
                 else:
-                    teacher_hiddens = teacher_hiddens["hidden_states"][1:]
-                teacher_hiddens = torch.stack(teacher_hiddens, dim=1)  # B x N x T x D
+                    teacher_hiddens_output = teacher_hiddens["hidden_states"][1:]
+                teacher_hiddens_output = torch.stack(teacher_hiddens_output, dim=1)  # B x N x T x D
 
         # Compute all objectives
         (
@@ -285,7 +288,7 @@ class DistillerForPretrain(nn.Module):
             feat_pen,
             sim_loss,
             sim_layer_loss,
-        ) = self.compute_loss(feat, pred, teacher_hiddens, return_other)
+        ) = self.compute_loss(feat, pred, teacher_hiddens_output, return_other)
 
         if return_other:
             with torch.no_grad():

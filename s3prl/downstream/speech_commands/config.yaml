@@ -1,12 +1,12 @@
 runner:
-  total_steps: 400000
+  total_steps: 200000
   gradient_clipping: 1
   gradient_accumulate_steps: 1
 
   log_step: 1000
   eval_step: 500000
   save_step: 2000
-  max_keep: 50
+  max_keep: 200
   eval_dataloaders:
     - dev
     - test

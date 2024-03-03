@@ -25,7 +25,8 @@ import numpy as np
 #-------------#
 from pretrain.runner import Runner
 from utility.helper import override
-
+import sys
+sys.path.append('/s3prl/')
 
 ######################
 # PRETRAIN ARGUMENTS #
@@ -42,7 +43,7 @@ def get_pretrain_args():
     parser.add_argument('-c', '--config', metavar='CONFIG_PATH', help='The yaml file for configuring the whole experiment, except the upstream model')
 
     # upstream settings
-    parser.add_argument('-u', '--upstream', choices=os.listdir('pretrain/'))
+    parser.add_argument('-u', '--upstream', choices=os.listdir('/s3prl/s3prl/pretrain/'))
     parser.add_argument('-g', '--upstream_config', metavar='CONFIG_PATH', help='The yaml file for configuring the upstream model')
 
     # experiment directory, choose one to specify
@@ -55,6 +56,7 @@ def get_pretrain_args():
     parser.add_argument('--seed', default=1337, type=int)
     parser.add_argument('--device', default='cuda', help='model.to(device)')
     parser.add_argument('--multi_gpu', action='store_true', help='Enables multi-GPU training')
+    # parser.add_argument('--multi_gpu', default=True, help='Enables multi-GPU training')
 
     args = parser.parse_args()
 
@@ -103,11 +105,11 @@ def get_pretrain_args():
             args.expdir = f'result/pretrain/{args.expname}'
         os.makedirs(args.expdir, exist_ok=True)
 
-        upstream_dirs = [u for u in os.listdir('pretrain/') if re.search(f'^{u}_|^{u}$', args.upstream)]
+        upstream_dirs = [u for u in os.listdir('/s3prl/s3prl/pretrain/') if re.search(f'^{u}_|^{u}$', args.upstream)]
         assert len(upstream_dirs) == 1
 
         if args.config is None:
-            args.config = f'pretrain/{upstream_dirs[0]}/config_runner.yaml'
+            args.config = f'/s3prl/s3prl/pretrain/{upstream_dirs[0]}/config_runner.yaml'
         with open(args.config, 'r') as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
         if os.path.isfile(args.config):
@@ -116,7 +118,7 @@ def get_pretrain_args():
             raise FileNotFoundError('Wrong file path for runner config.')
         
         if args.upstream_config is None:
-            default_upstream_config = f'pretrain/{upstream_dirs[0]}/config_model.yaml'
+            default_upstream_config = f'/s3prl/s3prl/pretrain/{upstream_dirs[0]}/config_model.yaml'
             assert os.path.isfile(default_upstream_config)
             args.upstream_config = default_upstream_config
         if os.path.isfile(args.upstream_config):

@@ -22,14 +22,15 @@ class SpeechCommandsBaseDataset(Dataset):
     def __getitem__(self, idx):
         audio_path, text, label = self.data[idx]
         wav, _ = apply_effects_file(str(audio_path), EFFECTS)
+        wav_fbank = wav
         wav = wav.squeeze(0).numpy()
-        try:
-            wav = add_noise(wav)
-        except Exception as e:
-            print("this audio_path fail to add noise:" + audio_path)
+        # try:
+        #     wav = add_noise(wav)
+        # except Exception as e:
+        #     print("this audio_path fail to add noise:" + audio_path)
 
         # text = tokenizer(text, return_tensors='pt')
-        return wav, text, label
+        return wav, wav_fbank, text, label
 
     def __len__(self):
         return len(self.data)
@@ -72,8 +73,8 @@ class SpeechCommandsDataset(SpeechCommandsBaseDataset):
 
 
     def __getitem__(self, idx):
-        wav, text, label = super().__getitem__(idx)
-        return wav, text, label
+        wav, wav_fbank, text, label = super().__getitem__(idx)
+        return wav, wav_fbank, text, label
 
 class SpeechCommandsTestingDataset(SpeechCommandsBaseTestDataset):
     """Training and validation dataset."""

@@ -24,6 +24,7 @@ from s3prl.optimizers import get_optimizer
 from s3prl.schedulers import get_scheduler
 from s3prl.upstream.interfaces import Featurizer
 from s3prl.utility.helper import is_leader_process, get_model_state, show, defaultdict
+from s3prl.util.processor import extract_fbank
 
 from huggingface_hub import HfApi, HfFolder, Repository
 
@@ -281,7 +282,7 @@ class Runner():
                 else:
                     raise
 
-            for batch_id, (wavs, text, label) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc='train', file=tqdm_file)):
+            for batch_id, (wavs, wavs_fbank, text, label) in enumerate(tqdm(dataloader, dynamic_ncols=True, desc='train', file=tqdm_file)):
                 # try/except block for forward/backward
                 try:
                     if pbar.n >= pbar.total:
@@ -290,6 +291,7 @@ class Runner():
                     records["text"] += list(text)
                     # deal with data (audio, text)
                     wavs = [torch.FloatTensor(wav).to(self.args.device) for wav in wavs]
+                    wavs_fbank = [wav.to(self.args.device) for wav in wavs_fbank]
                     text = self.tokenizer(list(text), padding=True, truncation=True, return_tensors='pt').to(self.args.device)
                     text_mask = text['attention_mask']
                     with torch.cuda.amp.autocast(enabled=amp):
@@ -297,18 +299,26 @@ class Runner():
                             features = self.upstream.model(wavs)
                         else:
                             with torch.no_grad():
-                                features = self.upstream.model(wavs)
+                                # features = self.upstream.model(wavs)
                                 feat_text = self.upstream_huggingface(**text)[0]
-                        features = self.featurizer.model(wavs, features)
+                        # features = self.featurizer.model(wavs, features)
 
-                        if specaug:
-                            features, _ = specaug(features)
+                        # if specaug:
+                        #     features, _ = specaug(features)
 
+                        padded_feats, feats_length = extract_fbank(wavs_fbank)
                         loss = self.downstream.model(
                             train_split,
-                            features, feat_text, text_mask, label,
+                            padded_feats, feats_length, feat_text, text_mask, label,
                             records = records,
                         )
+
+                        # total_num = sum(p.numel() for p in self.downstream.model.parameters())
+                        # trainable_num = sum(p.numel() for p in self.downstream.model.parameters() if p.requires_grad)
+                        # print('Total:' + str(total_num))
+                        # print('Trainable:' + str(trainable_num))
+
+
                     batch_ids.append(batch_id)
 
                     gradient_accumulate_steps = self.config['runner'].get('gradient_accumulate_steps')
